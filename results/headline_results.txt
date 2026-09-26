@@ -1,0 +1,54 @@
+==========================================================================
+HEADLINE RESULTS   (full mode, 608,195 parcels, 7 classes, 219 features)
+==========================================================================
+
+Majority-class baseline          0.2998
+
+1. LEAKAGE GAP (basic features, softmax, LORO over 4 regions)
+   random split      accuracy 0.5898 +/- 0.0006
+   held-out region   accuracy 0.5673 +/- 0.0039
+   gap                        +0.0225 +/- 0.0043   (4/4 folds positive)
+   train accuracy             0.6300   (generalisation gap +0.0627)
+
+2. VARIANCE OF TRANSFER (fold-to-fold sd of accuracy)
+   random split  sd 0.0006
+   regional      sd 0.0039   (6.9x)
+   gap sd, basic  features 0.0043
+   gap sd, all    features 0.0222
+
+3. FEATURE SETS (softmax, LORO)
+   basic              n= 52  regional 0.5673   gap +0.0225 +/- 0.0043
+   basic + ndvi       n= 58  regional 0.5633   gap +0.0326 +/- 0.0077
+   basic + ndre       n= 58  regional 0.5670   gap +0.0242 +/- 0.0047
+   basic + ndwi       n= 58  regional 0.5833   gap +0.0245 +/- 0.0112
+   basic + evi        n= 58  regional 0.5662   gap +0.0317 +/- 0.0101
+   basic + harmonic   n=117  regional 0.6571   gap +0.0259 +/- 0.0161
+   basic + segment    n=130  regional 0.6576   gap +0.0258 +/- 0.0179
+   all                n=219  regional 0.6625   gap +0.0313 +/- 0.0222
+
+4. DOES THE FEATURE SET WIDEN THE GAP? (paired vs basic, 4 folds)
+   basic + ndvi       d=+0.0100  p=0.0188  4/4 folds  *
+   basic + ndre       d=+0.0016  p=0.0871  3/4 folds
+   basic + ndwi       d=+0.0020  p=0.6816  3/4 folds
+   basic + evi        d=+0.0092  p=0.0671  4/4 folds
+   basic + harmonic   d=+0.0033  p=0.6525  2/4 folds
+   basic + segment    d=+0.0033  p=0.7108  2/4 folds
+   all                d=+0.0088  p=0.4173  2/4 folds
+
+5. FINAL MODEL (all features, nested LORO)
+   gamma selected: 0, 0, 0, 0
+   softmax        accuracy 0.6625 +/- 0.0219   macro F1 0.5306 +/- 0.0352
+   weighted CE    accuracy 0.6569 +/- 0.0382   macro F1 0.5611 +/- 0.0612
+
+6. WHERE THE ERROR LIVES (softmax, pooled)
+   permanent <-> temporary meadow = 51.9% of all errors
+   accuracy 0.6613 -> 0.8371 if those two classes are merged
+
+7. TOP FEATURE GROUPS (permutation, regional split)
+   band 2 (b2)            drop +0.1805 (regional)  +0.1997 (random)
+   band 12 (b12)          drop +0.1195 (regional)  +0.1378 (random)
+   band 9 (b9)            drop +0.1066 (regional)  +0.1120 (random)
+   band 6 (b6)            drop +0.0798 (regional)  +0.0839 (random)
+   band 11 (b11)          drop +0.0656 (regional)  +0.0752 (random)
+
+==========================================================================

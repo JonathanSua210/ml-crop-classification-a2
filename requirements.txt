@@ -1,0 +1,7 @@
+﻿breizhcrops
+xgboost
+scikit-learn
+pandas
+numpy
+matplotlib
+jupytext

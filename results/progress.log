@@ -1,0 +1,35 @@
+[13:54:45  +   0.0 min]  start   MODE=full  {'sample_frac': 1.0, 'rounds': 200, 'gamma_grid': [0.0, 1.0, 2.0, 3.0], 'select_frac': 0.3}
+[14:12:26  +  17.7 min]  features: frh01 done (178,613 of 178,613 parcels, 1055s)
+[14:26:51  +  32.1 min]  features: frh02 done (140,645 of 140,645 parcels, 865s)
+[14:44:20  +  49.6 min]  features: frh03 done (166,391 of 166,391 parcels, 1049s)
+[14:52:32  +  57.8 min]  features: frh04 done (122,614 of 122,614 parcels, 492s)
+[14:54:47  +  60.0 min]  exp1: fold frh01, softmax done
+[14:58:42  +  64.0 min]  exp1: fold frh01, focal done
+[15:01:06  +  66.4 min]  exp1: fold frh02, softmax done
+[15:05:17  +  70.5 min]  exp1: fold frh02, focal done
+[15:07:34  +  72.8 min]  exp1: fold frh03, softmax done
+[15:11:36  +  76.9 min]  exp1: fold frh03, focal done
+[15:14:04  +  79.3 min]  exp1: fold frh04, softmax done
+[15:18:22  +  83.6 min]  exp1: fold frh04, focal done
+[15:27:34  +  92.8 min]  exp2: feature set 'basic' done (52 features)
+[15:37:36  + 102.8 min]  exp2: feature set 'basic + ndvi' done (58 features)
+[15:47:41  + 112.9 min]  exp2: feature set 'basic + ndre' done (58 features)
+[15:57:50  + 123.1 min]  exp2: feature set 'basic + ndwi' done (58 features)
+[16:07:47  + 133.0 min]  exp2: feature set 'basic + evi' done (58 features)
+[16:29:07  + 154.4 min]  exp2: feature set 'basic + harmonic' done (117 features)
+[16:53:05  + 178.3 min]  exp2: feature set 'basic + segment' done (130 features)
+[17:45:38  + 230.9 min]  exp2: feature set 'all' done (219 features)
+[18:11:32  + 256.8 min]  exp3: fold frh01, inner gamma selection done (12 fits)
+[18:24:33  + 269.8 min]  exp3: fold frh01 complete, gamma=0
+[18:52:03  + 297.3 min]  exp3: fold frh02, inner gamma selection done (12 fits)
+[19:05:53  + 311.1 min]  exp3: fold frh02 complete, gamma=0
+[19:31:51  + 337.1 min]  exp3: fold frh03, inner gamma selection done (12 fits)
+[19:44:50  + 350.1 min]  exp3: fold frh03 complete, gamma=0
+[20:12:33  + 377.8 min]  exp3: fold frh04, inner gamma selection done (12 fits)
+[20:26:54  + 392.2 min]  exp3: fold frh04 complete, gamma=0
+[20:33:19  + 398.6 min]  learning curves: training finished
+[20:33:44  + 399.0 min]  exp4: fold frh01 done
+[20:34:09  + 399.4 min]  exp4: fold frh02 done
+[20:34:35  + 399.8 min]  exp4: fold frh03 done
+[20:35:00  + 400.3 min]  exp4: fold frh04 done
+[20:35:01  + 400.3 min]  ALL DONE
