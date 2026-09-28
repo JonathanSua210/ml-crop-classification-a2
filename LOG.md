@@ -849,28 +849,210 @@ per-band values and checks that each named feature holds the right one.
 
 ---
 
+## Entry 15 — Cloud contamination: a limitation, stated rather than fixed
+
+BreizhCrops is Sentinel-2 **Level-1C**, top-of-atmosphere reflectance. No
+atmospheric correction, no cloud mask. Every acquisition is present whether
+or not the sky was clear, which is why some parcel reflectance values exceed
+1.0 (visible in the value-range printout in the notebook's data section).
+
+**Effect on the features.** Cloud raises reflectance across most bands and
+suppresses NDVI, because cloud is bright in red as well as near-infrared.
+Exposure varies by feature:
+
+- `max` and `*_peak` are the most exposed: a single cloudy date sets them.
+- `mean` and segment means are diluted but not immune.
+- Harmonic coefficients are the most robust, since a least-squares fit over
+  45 points damps isolated spikes.
+
+**Why it was not fixed.** Proper masking uses Sentinel-2's scene
+classification layer or cloud-probability band, and neither survives into
+BreizhCrops, which supplies parcel-averaged reflectance only. The remaining
+option is a reflectance threshold heuristic, which has a real cost: dropping
+dates leaves parcels with different numbers of observations, and the
+fixed-length featurisation (6 segment windows, a 45-point harmonic fit)
+assumes a common grid. Handling that properly means interpolating onto a
+regular calendar first, which is a project of its own.
+
+**The part that bears on the main finding.** Cloud is *spatially* correlated:
+a cloudy day covers a whole area, not scattered individual parcels. So cloud
+contamination is partly a regional effect. A model trained on three regions
+may be fitting their cloud patterns as well as their agronomy, which means an
+unknown share of the measured leakage gap could be cloud rather than crop
+phenology. This does not invalidate the gap, which is measured identically in
+both arms, but it does mean "regional difference" is not purely agronomic.
+
+Distinguishing the two would need a cloud-free comparison, and the data as
+distributed does not permit one. This is the most substantive untested
+confound in the project and belongs in the limitations section.
+
+---
+
+## Entry 16 — Full notebook run: replication, and two new findings
+
+`crop_leakage.ipynb` run in full mode: 608,195 parcels, 7 classes, 219
+features, 400 minutes, zero errors. This is the canonical result set and the
+one the report quotes.
+
+### Everything replicated
+
+| claim | scripts | notebook |
+|---|---|---|
+| leakage gap | +0.0226 +/- 0.0049, 4/4 folds | **+0.0225 +/- 0.0043, 4/4** |
+| random sd vs regional sd | 0.0005 vs 0.0046 | **0.0006 vs 0.0039 (6.9x)** |
+| gap sd, basic -> all features | 6.4x | **5.2x** |
+| temporal feature gain | +9.0 points | **+9.5 points** |
+| meadow share of all errors | 51.9% | **51.9%** |
+| accuracy with meadows merged | 0.834 | **0.837** |
+| gamma selected | 0 in every fold | **0 in every fold** |
+
+Independent reimplementation, per-fold class weights instead of pooled, 219
+features instead of 202, float32 instead of float64. Nothing moved. The
+gamma=0 ablation in particular now has two independent confirmations.
+
+Majority baseline 0.2998; final model 0.6625, so 2.2x baseline.
+
+### Finding refined: it is greenness phenology, not indices in general
+
+| index | built on | d(gap) | p | folds |
+|---|---|---|---|---|
+| **NDVI** | red / NIR | **+0.0100** | **0.019** | **4/4** |
+| **EVI** | red / NIR (+blue) | **+0.0092** | 0.067 | **4/4** |
+| NDRE | red edge | +0.0016 | 0.087 | 3/4 |
+| NDWI | SWIR | +0.0020 | 0.682 | 3/4 |
+
+Adding NDRE, NDWI and EVI was done specifically to test whether the earlier
+NDVI result was about NDVI or about index features generally (the same n=1
+error as Entry 7, caught before it was repeated). The answer is neither of
+the obvious ones:
+
+The two **red/NIR greenness** indices behave almost identically (+0.010, 4/4
+folds each). The indices built on other physics — chlorophyll via red edge,
+water content via SWIR — barely move the gap. So the claim is narrower and
+more mechanistic than "index features leak": **red/NIR greenness phenology is
+the component that does not transfer across regions.** Green-up and
+senescence timing depend on local soil and weather; chlorophyll and water
+content do not encode timing the same way.
+
+Caveat on the strength of this: NDVI and EVI are strongly correlated, both
+being red/NIR contrasts. This is one mechanism confirmed in two formulations,
+not two independent confirmations.
+
+**Unexpected practical result: NDWI is the most useful index.** It raises
+regional accuracy more than any other (0.5673 -> 0.5833, +1.6 points) while
+leaving the gap essentially unchanged. So water-content features help
+generalisation, while greenness features help the random split and hurt
+transfer. For anyone building a crop map to deploy on unseen regions, that is
+an actionable recommendation.
+
+### Overfitting: the model is capacity-limited, not memorising
+
+Learning curves on frh01, all 219 features, 200 rounds:
+
+| | accuracy at round 200 |
+|---|---|
+| train | 0.7357 |
+| random test | 0.7169 |
+| held-out region | 0.6722 |
+
+Train-to-regional gap is 0.064, and training accuracy was **still rising** in
+the last rounds (0.7349 -> 0.7357 over rounds 197-199). The model is not
+overfitting at this depth and round count; more capacity would likely help
+slightly.
+
+This is consistent with the meadow result. The model cannot fit the *training*
+data well either, because a large share of the task is not determined by the
+input at all. A model that cannot reach 0.75 on data it has seen is not one
+whose errors are mostly variance.
+
+### Feature importance, and an empirical version of the cloud confound
+
+Grouped permutation importance, mean accuracy drop over four folds:
+
+| group | regional | random | band |
+|---|---|---|---|
+| band 2 | 0.1805 | 0.1997 | B3, green |
+| band 12 | 0.1195 | 0.1378 | B12, SWIR-2 |
+| **band 9** | **0.1066** | 0.1120 | **B9, water vapour 945nm** |
+| band 6 | 0.0798 | 0.0839 | B7, red edge |
+| band 11 | 0.0656 | 0.0752 | B11, SWIR-1 |
+| index ndwi | 0.0632 | 0.0722 | - |
+| **band 10** | **0.0499** | 0.0489 | **B10, cirrus 1375nm** |
+
+**B9 and B10 are atmospheric sounding bands.** B10 (cirrus, 1375 nm) is
+strongly absorbed by water vapour and is designed so that almost no surface
+signal reaches the sensor; it exists to detect high cloud, not ground cover.
+Shuffling it costs 5 accuracy points, and B9 costs 10.7.
+
+The model is therefore using **atmospheric state** as a predictor of crop
+type. Entry 15 argued on physical grounds that cloud contamination was a
+plausible confound; this measures it. Since atmospheric conditions on a given
+acquisition date are spatially correlated, part of what the model learns as
+"region" is weather rather than agronomy. That is a real qualification on the
+leakage result and belongs in the discussion.
+
+It does not invalidate the gap — both arms see the same data — but it means
+"regional difference" is not purely agronomic, and the gap is not purely a
+crop-phenology effect.
+
+**Reading the low-importance groups correctly.** Red (band 3, drop 0.0005)
+and NIR (band 7, 0.0225) look nearly irrelevant, which is not what it seems.
+Shuffling `b3_*` destroys red's raw statistics but leaves NDVI and EVI intact,
+and those carry the same information. Permutation importance measures
+reliance *given everything else present*, not intrinsic usefulness. The same
+caution applies in reverse to B9 and B10: they are not substitutable by
+anything else in the feature set, which is part of why their drop is large.
+
+**Obvious next experiment**, not run: drop B9 and B10 and retrain. If accuracy
+falls materially, the model was depending on atmosphere; if the gap narrows,
+part of the measured leakage was atmospheric rather than agronomic. Eight
+fits, about an hour.
+
+---
+
 ## Final summary of findings
 
-In order of strength of evidence:
+All numbers from the full notebook run (608,195 parcels, 219 features,
+leave-one-region-out over four NUTS-3 regions). Majority baseline 0.2998.
 
 1. **Increasing a model's capacity to exploit local structure makes
-   cross-region transfer less predictable.** Gap or accuracy variance rises
-   4.3x (reweighting), 6.4x (temporal features) and about 2x (reweighting on
-   top of temporal features), while mean effects stay small. Three
-   interventions, one pattern.
-2. **Random cross validation hides this almost completely**: fold sd 0.0005
-   for random splits against 0.0212 for regional splits.
-3. **About half of all errors come from a label the input cannot fully
-   determine.** Merging permanent and temporary meadows lifts accuracy from
-   0.656 to 0.834, and the distinction is defined by five years of land-use
-   history.
-4. **NDVI phenology features specifically widen the leakage gap** (4/4
-   folds, paired p = 0.018), with a visible mechanism.
-5. **The leakage gap is real and modest**: +0.0226 +/- 0.0049, positive in
+   cross-region transfer less predictable.** Fold-to-fold spread of the
+   leakage gap rises 5.2x from basic to full features, and the spread of
+   regional accuracy roughly doubles under class reweighting, while the mean
+   effects stay small. Three interventions, one pattern.
+
+2. **Random cross validation conceals this almost entirely.** Accuracy across
+   folds varies by +/- 0.0006 under random splits and +/- 0.0039 under
+   regional splits, 6.9x more. A practitioner validating the usual way sees a
+   model stable to the fourth decimal and gets no warning.
+
+3. **About half the remaining error is not the model's to fix.** Permanent
+   versus temporary meadow confusion is 51.9% of all errors; merging those two
+   classes lifts accuracy from 0.661 to 0.837. The distinction is defined by
+   five years of land-use history (Reg. (EU) 1307/2013 Art. 4(1)(h)), and the
+   model sees one season.
+
+4. **It is red/NIR greenness phenology specifically that fails to transfer.**
+   NDVI (+0.0100, p=0.019) and EVI (+0.0092) widen the gap in 4/4 folds;
+   red-edge and SWIR indices do not. NDWI meanwhile gives the largest gain in
+   regional accuracy (+1.6 points) of any index.
+
+5. **The leakage gap is real and modest**: +0.0225 +/- 0.0043, positive in
    every fold.
-6. **Temporal features add 9 points of accuracy**; class reweighting trades
-   precision for recall; the focal focusing term adds nothing (gamma = 0 in
-   every fold).
+
+6. **The model relies on atmospheric bands.** B9 (water vapour) and B10
+   (cirrus) carry permutation importance of 0.107 and 0.050 despite carrying
+   little surface signal, so an unquantified share of the regional effect is
+   weather rather than agronomy.
+
+7. **Not overfitting.** Train 0.736 against held-out region 0.672, with
+   training accuracy still rising at round 200. The model is capacity-limited,
+   which is consistent with finding 3.
+
+8. **Component contributions.** Temporal features add 9.5 accuracy points.
+   Class reweighting trades precision for recall (macro F1 0.531 -> 0.561,
+   accuracy 0.663 -> 0.657). The focal focusing term adds nothing: gamma = 0
+   was selected in every fold.
 
 ---
 
@@ -881,26 +1063,40 @@ design, code and analysis. Entries above are written in the first person for
 readability; this section states plainly who originated what, because that is
 what I need to be able to defend.
 
-**Originated by Claude, then reviewed and run by me:**
-- Dataset choice (BreizhCrops) and the framing of the research question as
-  random-split vs regional-split leakage.
-- Project structure, all scripts, the focal loss derivation and its tests,
-  the v2 temporal features, the LORO and nested-LORO protocols, the figures.
-- Most of the interpretation drafted in these entries.
-
-**My contribution:**
+**Originated by me:**
 - The project direction: Option 2, crop type classification, XGBoost.
-- The domain framing behind the research question. I have built crop
-  classifiers on paddock imagery at work using cross-paddock train/test
-  splits, which is where the concern about spatially leaky evaluation comes
-  from.
-- The decision to make the analysis as rigorous as possible before writing
-  up, including running every result at full data size rather than accepting
-  subsample numbers.
-- Running every experiment, and reading the outputs.
+- The decision to treat evaluation protocol, rather than accuracy, as the
+  object of study.
+- The principle that evaluation should split by spatial group rather than at
+  random. This comes from commercial crop classification work, where the
+  requirement was that test paddocks be distinctly different from training
+  paddocks, and that no training paddock sat close to or inside the area being
+  tested, so that the evaluation carried as little optimistic bias as possible.
+- The decision to add NDRE, NDWI and EVI, and to test them as separate feature
+  sets rather than as one block. That separation is what allowed the finding to
+  be narrowed from "index features" to "red/NIR greenness phenology".
+- The request for grouped feature importance, to assess whether individual
+  bands could be dropped. This is what surfaced the model's reliance on the
+  atmospheric sounding bands.
+- The insistence on measuring runtime empirically before committing to a long
+  run, and on progress instrumentation so a silent headless run could be
+  monitored.
+- The decision to run every reported result at full dataset scale rather than
+  accept subsample figures, and to finish the analysis before writing up.
+- Running every experiment and reading every output.
 
-[EDIT THIS LIST. Add any decisions you actually made, and remove anything
-above that is not accurate. Only you know this part.]
+**Originated by Claude, then reviewed and run by me:**
+- Dataset choice (BreizhCrops).
+- Project structure and effectively all of the code.
+- The focal loss derivation, its implementation, and the two verification
+  strategies for it.
+- The formalisation of the spatial-splitting principle into the protocol
+  actually used: leaving out each of the four regions in turn, the
+  size-matched random control, and the nested inner leave-one-region-out for
+  gamma selection. Also the choice of paired testing.
+- The v2 temporal features and the figures.
+- Most of the interpretation drafted in these entries, and the first drafts of
+  the report.
 
 **AI errors caught during the project.** This is the most useful record of
 critical review, because each one would have gone into the report unchecked:
